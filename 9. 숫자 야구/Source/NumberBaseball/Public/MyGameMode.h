@@ -9,7 +9,7 @@ UCLASS()
 class NUMBERBASEBALL_API AMyGameMode : public AGameMode
 {
 	GENERATED_BODY()
-	
+
 public:
 	AMyGameMode();
 
@@ -17,13 +17,11 @@ public:
 
 	int32 ReadyCount = 0;
 
-	int32 GetReadyCount() { return ReadyCount; }
+	int32 GetReadyCount() const { return ReadyCount; }
 
-	int32 GetPlayerNum() { return PlayerNum; }
+	int32 GetPlayerNum() const { return PlayerNum; }
 
 	void Ready();
-
-	void StartGame();
 
 	void CheckAnswer(AMyPlayerController* PlayerController, const FString& InputNumberString);
 
@@ -34,30 +32,32 @@ protected:
 
 	virtual void PostLogin(APlayerController* NewPlayer) override;
 
+private:
+	void StartGame();
+
 	FString GenerateRandomNumber(const int32 DigitCount);
 
 	void PickRandomFirstTurnPlayer();
-
-	void NextTurn();
-
-private:
-	TArray<AMyPlayerController*> PlayerControllers;
-
-	int32 PlayerNum = 0;
-
-	static const int32 DIGITS_COUNT = 4;
-
-	FString ServerNumber;
-
-	UPROPERTY()
-	float TurnTimeLimit = 10.0f;
-
-	FTimerHandle TurnTimerHandle;
-	FTimerHandle UpdateTimerHandle;
 
 	void StartTurnTimer();
 
 	void HandleTurnTimeout();
 
-	void UpdateTurnTimeRemaining();
+	void NextTurn();
+
+	void NotifyClientReadyForRestart(AMyPlayerController* PC);
+
+	TArray<TObjectPtr<AMyPlayerController>> PlayerControllers;
+
+	int32 PlayerNum = 0;
+
+	static constexpr int32 DIGITS_COUNT = 4;
+
+	FString AnswerNumber;
+
+	static constexpr float TurnTimeLimit = 20.0f;
+
+	FTimerHandle TurnTimerHandle;
+
+	int32 RestartReadyCount = 0;
 };

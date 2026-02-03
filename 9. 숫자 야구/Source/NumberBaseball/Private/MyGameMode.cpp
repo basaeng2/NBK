@@ -4,19 +4,8 @@
 
 AMyGameMode::AMyGameMode()
 {
-	PlayerControllerClass = AMyPlayerController::StaticClass();
-	GameStateClass = AMyGameState::StaticClass();
-}
-
-void AMyGameMode::PostLogin(APlayerController* NewPlayer)
-{
-    Super::PostLogin(NewPlayer);
-
-    if (AMyPlayerController* PC = Cast<AMyPlayerController>(NewPlayer))
-    {
-        PlayerControllers.Add(PC);
-        PlayerNum++;
-    }
+    PlayerControllerClass = AMyPlayerController::StaticClass();
+    GameStateClass = AMyGameState::StaticClass();
 }
 
 void AMyGameMode::Ready()
@@ -27,106 +16,25 @@ void AMyGameMode::Ready()
     }
 }
 
-void AMyGameMode::StartGame()
-{
-    ServerNumber = GenerateRandomNumber(4);
-
-    PickRandomFirstTurnPlayer();
-
-    StartTurnTimer();
-}
-
-FString AMyGameMode::GenerateRandomNumber(const int32 DigitCount)
-{
-    TArray<int32> Digits;
-    while (Digits.Num() < DigitCount)
-    {
-        int32 RandDigit = FMath::RandRange(1, 9);
-        if (!Digits.Contains(RandDigit))
-        {
-            Digits.Add(RandDigit);
-        }
-    }
-
-    FString Result;
-    for (int32 Num : Digits)
-    {
-        Result.AppendInt(Num);
-    }
-
-    if (GEngine)
-    {
-        GEngine->AddOnScreenDebugMessage(
-            -1,
-            5.0f,
-            FColor::Yellow,
-            FString::Printf(TEXT("Generated Number: %s"), *Result)
-        );
-    }
-
-    return Result;
-}
-
-void AMyGameMode::PickRandomFirstTurnPlayer()
-{
-    if (PlayerControllers.Num() < PlayerNum) return;
-
-    int32 RandomIndex = FMath::RandRange(0, PlayerControllers.Num() - 1);
-
-    AMyGameState* GS = GetGameState <AMyGameState>();
-    if (GS)
-    {
-        GS->SetCurrentTurnPlayer(PlayerControllers[RandomIndex]);
-    }
-}
-
-void AMyGameMode::StartTurnTimer()
-{
-    GetWorld()->GetTimerManager().ClearTimer(TurnTimerHandle);
-    GetWorld()->GetTimerManager().ClearTimer(UpdateTimerHandle);
-
-    AMyGameState* GS = Cast<AMyGameState>(GameState);
-    if (GS)
-    {
-        GS->SetCurrentTurnTimeRemaining(TurnTimeLimit);
-    }
-
-    GetWorld()->GetTimerManager().SetTimer(
-        TurnTimerHandle,
-        this,
-        &AMyGameMode::HandleTurnTimeout,
-        TurnTimeLimit,
-        false
-    );
-
-    GetWorld()->GetTimerManager().SetTimer(
-        UpdateTimerHandle,
-        this,
-        &AMyGameMode::UpdateTurnTimeRemaining,
-        0.1f,
-        true
-    );
-}
-
 void AMyGameMode::CheckAnswer(AMyPlayerController* PlayerController, const FString& InputNumberStr)
 {
-       if (!PlayerController) { return; }
+    if (!PlayerController) { return; }
 
     int32 Strike = 0;
     int32 Ball = 0;
 
-    if (InputNumberStr.Len() != DIGITS_COUNT || ServerNumber.Len() != DIGITS_COUNT)
+    if (InputNumberStr.Len() != DIGITS_COUNT || AnswerNumber.Len() != DIGITS_COUNT)
     {
         return;
     }
 
     for (int32 i = 0; i < DIGITS_COUNT; i++)
     {
-        if (InputNumberStr[i] == ServerNumber[i])
+        if (InputNumberStr[i] == AnswerNumber[i])
         {
             Strike++;
         }
-        else if (ServerNumber.Contains(FString(1, &InputNumberStr[i])))
+        else if (AnswerNumber.Contains(FString(1, &InputNumberStr[i])))
         {
             Ball++;
         }
@@ -143,7 +51,6 @@ void AMyGameMode::CheckAnswer(AMyPlayerController* PlayerController, const FStri
     if (Strike == DIGITS_COUNT)
     {
         GetWorld()->GetTimerManager().ClearTimer(TurnTimerHandle);
-        GetWorld()->GetTimerManager().ClearTimer(UpdateTimerHandle);
 
         PlayerController->ClientOnGameWin();
 
@@ -164,42 +71,110 @@ void AMyGameMode::CheckAnswer(AMyPlayerController* PlayerController, const FStri
     }
 }
 
-void AMyGameMode::HandleTurnTimeout()
+void AMyGameMode::RequestRestartGame(APlayerController* RequestingPC)
 {
-    GetWorld()->GetTimerManager().ClearTimer(TurnTimerHandle);
-    GetWorld()->GetTimerManager().ClearTimer(UpdateTimerHandle);
-
-    NextTurn();
-}
-
-void AMyGameMode::UpdateTurnTimeRemaining()
-{
-    AMyGameState* GS = Cast<AMyGameState>(GameState);
-    if (!GS) return;
-
-    if (!GetWorld()->GetTimerManager().IsTimerActive(TurnTimerHandle))
-    {
-        GetWorld()->GetTimerManager().ClearTimer(UpdateTimerHandle);
-        return;
-    }
-
-    float RemainingTime = GetWorld()->GetTimerManager().GetTimerRemaining(TurnTimerHandle);
-
-    if (RemainingTime < 0.0f || RemainingTime > TurnTimeLimit || !FMath::IsFinite(RemainingTime))
-    {
-        RemainingTime = TurnTimeLimit;
-    }
-
-    GS->SetCurrentTurnTimeRemaining(RemainingTime);
+    if (!PlayerControllers.Contains(RequestingPC)) return;
 
     for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
     {
         AMyPlayerController* PC = Cast<AMyPlayerController>(*It);
-        if (PC)
-        {
-            PC->ClientUpdateTurnTime(GS->GetCurrentTurnTimeRemaining());
-        }
+
+        check(PC);
+        PC->ClientResettingButtons();
+
+        NotifyClientReadyForRestart(PC);
     }
+}
+
+void AMyGameMode::BeginPlay()
+{
+    Super::BeginPlay();
+}
+
+void AMyGameMode::PostLogin(APlayerController* NewPlayer)
+{
+    Super::PostLogin(NewPlayer);
+
+    if (AMyPlayerController* PC = Cast<AMyPlayerController>(NewPlayer))
+    {
+        PlayerControllers.Add(PC);
+        PlayerNum++;
+    }
+}
+
+void AMyGameMode::StartGame()
+{
+    AnswerNumber = GenerateRandomNumber(4);
+
+    PickRandomFirstTurnPlayer();
+
+    StartTurnTimer();
+}
+
+FString AMyGameMode::GenerateRandomNumber(const int32 DigitCount)
+{
+    TArray<int32> Nums = { 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+    FString ResultNumber;
+    int32 LastIndex = Nums.Num() - 1;
+    for (int32 i = 0; i < DigitCount; i++)
+    {
+        int32 RandIndex = FMath::RandRange(0, LastIndex);
+        ResultNumber.AppendInt(Nums[RandIndex]);
+        Nums.Swap(RandIndex, LastIndex);
+        LastIndex--;
+    }
+
+    if (GEngine)
+    {
+        GEngine->AddOnScreenDebugMessage(
+            -1,
+            5.0f,
+            FColor::Yellow,
+            FString::Printf(TEXT("Generated Number: %s"), *ResultNumber)
+        );
+    }
+
+    return ResultNumber;
+}
+
+void AMyGameMode::PickRandomFirstTurnPlayer()
+{
+    if (PlayerControllers.Num() < PlayerNum) return;
+
+    int32 RandomIndex = FMath::RandRange(0, PlayerControllers.Num() - 1);
+
+    AMyGameState* GS = GetGameState<AMyGameState>();
+    if (GS)
+    {
+        GS->SetCurrentTurnPlayer(PlayerControllers[RandomIndex]);
+    }
+}
+
+void AMyGameMode::StartTurnTimer()
+{
+    GetWorld()->GetTimerManager().ClearTimer(TurnTimerHandle);
+
+    AMyGameState* GS = Cast<AMyGameState>(GameState);
+    if (GS)
+    {
+        GS->SetTurnStartServerTime(GS->GetServerWorldTimeSeconds());
+        GS->SetTurnTimeLimit(TurnTimeLimit);
+    }
+
+    GetWorld()->GetTimerManager().SetTimer(
+        TurnTimerHandle,
+        this,
+        &AMyGameMode::HandleTurnTimeout,
+        TurnTimeLimit,
+        false
+    );
+}
+
+void AMyGameMode::HandleTurnTimeout()
+{
+    GetWorld()->GetTimerManager().ClearTimer(TurnTimerHandle);
+
+    NextTurn();
 }
 
 void AMyGameMode::NextTurn()
@@ -216,23 +191,14 @@ void AMyGameMode::NextTurn()
     StartTurnTimer();
 }
 
-void AMyGameMode::RequestRestartGame(APlayerController* RequestingPC)
+void AMyGameMode::NotifyClientReadyForRestart(AMyPlayerController* PC)
 {
-    if (!PlayerControllers.Contains(RequestingPC)) return;
+    RestartReadyCount++;
 
-    for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+    if (RestartReadyCount >= PlayerControllers.Num())
     {
-        AMyPlayerController* PC = Cast<AMyPlayerController>(*It);
-        if (PC)
-        {
-            PC->ClientResettingbuttons();
-        }
+        RestartReadyCount = 0;
+
+        StartGame();
     }
-
-    StartGame();
-}
-
-void AMyGameMode::BeginPlay()
-{
-    Super::BeginPlay();
 }

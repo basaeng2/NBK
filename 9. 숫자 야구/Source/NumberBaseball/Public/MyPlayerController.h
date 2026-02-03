@@ -11,37 +11,25 @@ class NUMBERBASEBALL_API AMyPlayerController : public APlayerController
 {
 	GENERATED_BODY()
 
-private:
-	void CreateWidgetOnViewport();
-
-protected:
-	virtual void BeginPlay() override;
-
-	UFUNCTION(Server, Reliable)
-	void ServerSendReadyValue(bool IsReady);
-
 public:
 	AMyPlayerController();
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HUD")
 	TSubclassOf<UUserWidget> HUDWidgetClass;
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "HUD")
-	UUserWidget* HUDWidgetInstance;
+	UWidget_Main* HUDWidgetInstance;
 
-	UFUNCTION(Client, Reliable)
-	void ClientSetMyTurn();
+	UFUNCTION()
+	void SetMyTurn();
 
-	UFUNCTION(Client, Reliable)
-	void ClientSetOtherTurn();
+	UFUNCTION()
+	void SetOtherTurn();
 
 	UFUNCTION(Server, Reliable)
 	void ServerSubmitGuess(const FString& InputNumber);
 
 	UFUNCTION(Client, Reliable)
 	void ClientReceiveResult(const FString& InputNumber, int32 Strike, int32 Ball);
-
-	UFUNCTION(Client, Reliable)
-	void ClientUpdateTurnTime(float RemainingTime);
 
 	UFUNCTION(Client, Reliable)
 	void ClientOnGameWin();
@@ -53,5 +41,14 @@ public:
 	void ServerRequestRestart();
 
 	UFUNCTION(Client, Reliable)
-	void ClientResettingbuttons();
+	void ClientResettingButtons();
+
+protected:
+	virtual void BeginPlay() override;
+
+	UFUNCTION(Server, Reliable)
+	void ServerSendReadyValue(bool IsReady);
+
+private:
+	void CreateWidgetOnViewport();
 };

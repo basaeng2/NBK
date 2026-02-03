@@ -8,137 +8,100 @@ AMyPlayerController::AMyPlayerController()
 	HUDWidgetInstance(nullptr)
 {}
 
-void AMyPlayerController::ServerSendReadyValue_Implementation(bool IsReady)
+void AMyPlayerController::SetMyTurn()
 {
-	if (IsReady)
-	{
-		AMyGameMode* GM = Cast<AMyGameMode>(GetWorld()->GetAuthGameMode());
-		{
-			GM->ReadyCount++;
-			UE_LOG(LogTemp, Warning, TEXT("Received value: %d"), GM->ReadyCount);
+	if (!IsLocalController()) return;
 
-			if (HasAuthority())
-			{
-				if (GM->ReadyCount == 2)
-				{
-					GM->Ready();
-				}
-			}
-		}
-	}
+	check(HUDWidgetInstance);
+
+	HUDWidgetInstance->SetAllButtonsEnabled(true);
+	HUDWidgetInstance->ClearGuessNumberTextMessage();
+	HUDWidgetInstance->ShowSignMessage(TEXT("내 턴입니다"));
 }
 
-void AMyPlayerController::ClientSetMyTurn_Implementation()
+void AMyPlayerController::SetOtherTurn()
 {
-	UWidget_Main* MainWidget = Cast<UWidget_Main>(HUDWidgetInstance);
-	if (MainWidget)
-	{
-		MainWidget->SetAllButtonsEnabled(true);
-		MainWidget->ClearGuessNumberTextMessage();
-		MainWidget->ShowSIgnMessage(TEXT("내 턴입니다"));
-	}
-}
+	if (!IsLocalController()) return;
 
-void AMyPlayerController::ClientSetOtherTurn_Implementation()
-{
-	UWidget_Main* MainWidget = Cast<UWidget_Main>(HUDWidgetInstance);
-	if (MainWidget)
-	{
-		MainWidget->SetAllButtonsEnabled(false);
-		MainWidget->ClearGuessNumberTextMessage();
-		MainWidget->ShowSIgnMessage(TEXT("상대방 턴입니다"));
-	}
+	check(HUDWidgetInstance);
+
+	HUDWidgetInstance->SetAllButtonsEnabled(false);
+	HUDWidgetInstance->ClearGuessNumberTextMessage();
+	HUDWidgetInstance->ShowSignMessage(TEXT("상대방 턴입니다"));
 }
 
 void AMyPlayerController::ServerSubmitGuess_Implementation(const FString& InputNumber)
 {
-	if (GetWorld())
-	{
-		AMyGameMode* GM = Cast<AMyGameMode>(GetWorld()->GetAuthGameMode());
-		if (GM)
-		{
-			GM->CheckAnswer(this, InputNumber);
-		}
-	}
+	check(GetWorld());
+	AMyGameMode* GM = Cast<AMyGameMode>(GetWorld()->GetAuthGameMode());
+
+	check(GM);
+	GM->CheckAnswer(this, InputNumber);
 }
 
 void AMyPlayerController::ClientReceiveResult_Implementation(const FString& InputNumber, int32 Strike, int32 Ball)
 {
-	UWidget_Main* MainWidget = Cast<UWidget_Main>(HUDWidgetInstance);
-	if (MainWidget)
-	{
-		MainWidget->ShowJudgementResult(InputNumber, Strike, Ball);
-	}
-}
-
-void AMyPlayerController::ClientUpdateTurnTime_Implementation(float RemainingTime)
-{
-	UWidget_Main* MainWidget = Cast<UWidget_Main>(HUDWidgetInstance);
-	if (MainWidget)
-	{
-		MainWidget->UpdateTurnTimeDisplay(RemainingTime);
-	}
+	check(HUDWidgetInstance);
+	HUDWidgetInstance->ShowJudgementResult(InputNumber, Strike, Ball);
 }
 
 void AMyPlayerController::ClientOnGameWin_Implementation()
 {
-	UWidget_Main* MainWidget = Cast<UWidget_Main>(HUDWidgetInstance);
-	if (MainWidget)
-	{
-		MainWidget->ShowGameWinMessage();
-		MainWidget->SetAllButtonsEnabled(false);
-		MainWidget->SetRestartButtonVisible(true);
-	}
+	check(HUDWidgetInstance);
+	HUDWidgetInstance->DoWinProcess();
 }
 
 void AMyPlayerController::ClientOnGameLose_Implementation()
 {
-	UWidget_Main* MainWidget = Cast<UWidget_Main>(HUDWidgetInstance);
-	if (MainWidget)
-	{
-		MainWidget->ShowGameLoseMessage();
-		MainWidget->SetAllButtonsEnabled(false);
-		MainWidget->SetRestartButtonVisible(true);
-	}
+	check(HUDWidgetInstance);
+	HUDWidgetInstance->DoLoseProcess();
 }
 
 void AMyPlayerController::ServerRequestRestart_Implementation()
 {
-	AMyGameMode* GM = Cast<AMyGameMode>(GetWorld()->GetAuthGameMode());
-	if (GM)
-	{
-		GM->RequestRestartGame(this);
-	}
+	AMyGameMode* GM = GetWorld()->GetAuthGameMode<AMyGameMode>();
+
+	check(GM);
+	GM->RequestRestartGame(this);
 }
 
-void AMyPlayerController::ClientResettingbuttons_Implementation()
+void AMyPlayerController::ClientResettingButtons_Implementation()
 {
-	UWidget_Main* MainWidget = Cast<UWidget_Main>(HUDWidgetInstance);
-	if (MainWidget)
-	{
-		MainWidget->ResetUI();
-	}
+	check(HUDWidgetInstance);
+	HUDWidgetInstance->ResetUI();
 }
 
 void AMyPlayerController::BeginPlay()
 {
 	Super::BeginPlay();
 
-	if(IsLocalController())
+	if (IsLocalController())
 	{
 		CreateWidgetOnViewport();
 		ServerSendReadyValue(true);
 	}
 }
 
-void AMyPlayerController::CreateWidgetOnViewport()
+void AMyPlayerController::ServerSendReadyValue_Implementation(bool IsReady)
 {
-	if (HUDWidgetClass)
+	check(IsReady);
+	AMyGameMode* GM = Cast<AMyGameMode>(GetWorld()->GetAuthGameMode());
 	{
-		HUDWidgetInstance = CreateWidget<UUserWidget>(this, HUDWidgetClass);
-		if (HUDWidgetInstance)
+		GM->ReadyCount++;
+		UE_LOG(LogTemp, Warning, TEXT("Received value: %d"), GM->ReadyCount);
+
+		if (GM->ReadyCount == 2)
 		{
-			HUDWidgetInstance->AddToViewport();
+			GM->Ready();
 		}
 	}
+}
+
+void AMyPlayerController::CreateWidgetOnViewport()
+{
+	check(HUDWidgetClass);
+	HUDWidgetInstance = CreateWidget<UWidget_Main>(this, HUDWidgetClass);
+	
+	check(HUDWidgetInstance);
+	HUDWidgetInstance->AddToViewport();
 }
