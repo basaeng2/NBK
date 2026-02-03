@@ -55,7 +55,7 @@ private:
 
 	FString AnswerNumber;
 
-	static constexpr float TurnTimeLimit = 20.0f;
+	static constexpr float TurnTimeLimit = 30.0f;
 
 	FTimerHandle TurnTimerHandle;
 
